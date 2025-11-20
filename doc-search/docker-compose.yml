@@ -1,0 +1,57 @@
+version: '3.8'
+services:
+  # Redis instances - one for each search service
+  redis-1:
+    image: redislabs/redisearch:latest
+    ports:
+      - "6379:6379"
+
+  redis-2:
+    image: redislabs/redisearch:latest
+    ports:
+      - "6380:6379"
+
+  redis-3:
+    image: redislabs/redisearch:latest
+    ports:
+      - "6381:6379"
+
+  # Load balancer (NGINX)
+  load-balancer:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - doc-search-1
+      - doc-search-2
+      - doc-search-3
+
+  # Doc search service instances - each with its own Redis
+  doc-search-1:
+    build: .
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis-1
+      - INSTANCE_ID=1
+    depends_on:
+      - redis-1
+
+  doc-search-2:
+    build: .
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis-2
+      - INSTANCE_ID=2
+    depends_on:
+      - redis-2
+
+  doc-search-3:
+    build: .
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis-3
+      - INSTANCE_ID=3
+    depends_on:
+      - redis-3
