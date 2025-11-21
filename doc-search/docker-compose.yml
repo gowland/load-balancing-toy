@@ -38,6 +38,13 @@ services:
       - INSTANCE_ID=1
     depends_on:
       - redis-1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   doc-search-2:
     build: .
@@ -47,6 +54,13 @@ services:
       - INSTANCE_ID=2
     depends_on:
       - redis-2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   doc-search-3:
     build: .
@@ -56,6 +70,13 @@ services:
       - INSTANCE_ID=3
     depends_on:
       - redis-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   nginx_cache:
