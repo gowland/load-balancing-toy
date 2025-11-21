@@ -80,3 +80,9 @@ services:
 
 volumes:
   nginx_cache:
+
+networks:
+  default:
+    driver: bridge
+  isolated:
+    driver: bridge

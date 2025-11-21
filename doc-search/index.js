@@ -11,8 +11,21 @@ const redis = new Redis({
 const instanceNumber = process.env.INSTANCE_ID || Math.floor(Math.random() * 1000);
 const instanceId = `doc-search-${instanceNumber}`;
 
+// Simulation state
+let isHealthy = true;
+let shouldCrash = false;
+let responseDelay = 0;
+
 // Health check endpoint
 app.get('/health', (req, res) => {
+  if (!isHealthy) {
+    return res.status(500).json({ 
+      status: 'unhealthy', 
+      instanceId: instanceId,
+      timestamp: new Date().toISOString() 
+    });
+  }
+  
   res.json({ 
     status: 'healthy', 
     instanceId: instanceId,
@@ -20,9 +33,55 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Failure simulation endpoints
+app.post('/simulate/unhealthy', (req, res) => {
+  isHealthy = false;
+  console.log(`[${instanceId}] Simulating unhealthy state`);
+  res.json({ message: `${instanceId} is now unhealthy`, instanceId });
+});
+
+app.post('/simulate/healthy', (req, res) => {
+  isHealthy = true;
+  console.log(`[${instanceId}] Returning to healthy state`);
+  res.json({ message: `${instanceId} is now healthy`, instanceId });
+});
+
+app.post('/simulate/crash', (req, res) => {
+  console.log(`[${instanceId}] Simulating crash in 2 seconds...`);
+  res.json({ message: `${instanceId} will crash in 2 seconds`, instanceId });
+  setTimeout(() => {
+    process.exit(1);
+  }, 2000);
+});
+
+app.post('/simulate/delay/:ms', (req, res) => {
+  responseDelay = parseInt(req.params.ms) || 0;
+  console.log(`[${instanceId}] Setting response delay to ${responseDelay}ms`);
+  res.json({ message: `${instanceId} now has ${responseDelay}ms delay`, instanceId });
+});
+
+app.post('/simulate/hang', (req, res) => {
+  console.log(`[${instanceId}] Simulating hang - not responding`);
+  // Don't send a response - simulates hanging
+});
+
+app.get('/simulate/status', (req, res) => {
+  res.json({
+    instanceId,
+    isHealthy,
+    responseDelay,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Missing query parameter' });
+
+  // Apply response delay if set
+  if (responseDelay > 0) {
+    await new Promise(resolve => setTimeout(resolve, responseDelay));
+  }
 
   console.log(`[${instanceId}] Processing search query: ${query}`);
 
