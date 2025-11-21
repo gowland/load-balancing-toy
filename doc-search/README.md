@@ -156,6 +156,151 @@ curl "http://localhost:8080/health"
 - **markdown-it**: Markdown to HTML conversion
 - **redis**: Additional Redis utilities
 
+## Failure Simulation
+
+The service includes built-in failure simulation endpoints for testing load balancing, health checks, and recovery scenarios. These are particularly useful for demonstrating how nginx handles service failures.
+
+### Simulation Endpoints
+
+#### Make Service Report Unhealthy
+```http
+POST /simulate/unhealthy
+```
+Makes the service report as unhealthy in health checks (returns HTTP 500).
+
+#### Restore Service to Healthy State
+```http
+POST /simulate/healthy
+```
+Restores the service to report as healthy in health checks.
+
+#### Add Response Delay
+```http
+POST /simulate/delay/{milliseconds}
+```
+Adds artificial delay to all responses. Useful for testing timeout handling.
+
+#### Simulate Service Crash
+```http
+POST /simulate/crash
+```
+Crashes the service after 2 seconds. Docker will automatically restart it due to restart policies.
+
+#### Simulate Service Hang
+```http
+POST /simulate/hang
+```
+Makes the service stop responding (no response sent). Useful for testing timeout scenarios.
+
+#### Check Simulation Status
+```http
+GET /simulate/status
+```
+Returns current simulation state (health status, delays, etc.).
+
+### PowerShell Testing Commands
+
+When using Windows PowerShell, use `Invoke-RestMethod` instead of `curl`:
+
+```powershell
+# Make a service report unhealthy
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/unhealthy" -Method POST
+
+# Add 5-second delay to responses  
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/delay/5000" -Method POST
+
+# Simulate service crash
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/crash" -Method POST
+
+# Make service hang (stop responding)
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/hang" -Method POST
+
+# Check simulation status
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/status" -Method GET
+
+# Restore service to healthy state
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/healthy" -Method POST
+
+# Remove response delays
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/delay/0" -Method POST
+
+# Test search during failures
+Invoke-RestMethod -Uri "http://localhost:8080/search?q=docker" -Method GET
+```
+
+### Demo Scenarios
+
+**1. Health Check Failure Demo:**
+```powershell
+# Make one service unhealthy
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/unhealthy" -Method POST
+
+# Wait 90+ seconds for health checks to detect failure
+# Test load balancer (should route around failed service)
+Invoke-RestMethod -Uri "http://localhost:8080/search?q=test" -Method GET
+
+# Restore service
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/healthy" -Method POST
+```
+
+**2. Performance Degradation Demo:**
+```powershell
+# Add delay to simulate slow service
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/delay/3000" -Method POST
+
+# Some requests will be slow, others normal (random load balancing)
+Invoke-RestMethod -Uri "http://localhost:8080/search?q=test" -Method GET
+
+# Remove delay
+Invoke-RestMethod -Uri "http://localhost:8080/simulate/delay/0" -Method POST
+```
+
+**3. Cache Behavior Demo:**
+```powershell
+# Make requests to see cache behavior (10-second cache)
+Invoke-RestMethod -Uri "http://localhost:8080/search?q=docker" -Method GET  # MISS
+Invoke-RestMethod -Uri "http://localhost:8080/search?q=docker" -Method GET  # HIT
+
+# Wait 11+ seconds and try again
+Start-Sleep -Seconds 11
+Invoke-RestMethod -Uri "http://localhost:8080/search?q=docker" -Method GET  # MISS (expired)
+```
+
+### Container-Level Failure Testing
+
+You can also test container failures directly:
+
+```powershell
+# Stop a specific service container
+docker-compose stop doc-search-1
+
+# Pause (freeze) a container
+docker-compose pause doc-search-2
+
+# View service status
+docker-compose ps
+
+# Restart services
+docker-compose start doc-search-1
+docker-compose unpause doc-search-2
+```
+
+### Monitoring During Tests
+
+Watch the behavior during failure simulation:
+
+```powershell
+# Monitor container health
+docker-compose ps
+
+# View logs from specific services
+docker-compose logs -f doc-search-1
+docker-compose logs -f load-balancer
+
+# Check cache headers in responses
+Invoke-WebRequest -Uri "http://localhost:8080/search?q=test" -Method GET | Select-Object Headers
+```
+
 ## Service Behavior
 
 - **Startup**: Waits for Redis availability, creates search index, populates documents
@@ -163,3 +308,6 @@ curl "http://localhost:8080/health"
 - **Logging**: Includes instance ID in all log messages for debugging
 - **Error Handling**: Graceful error responses with appropriate HTTP status codes
 - **Health**: Continuous health monitoring via dedicated endpoint
+- **Caching**: Nginx caches responses for 10 seconds to improve performance
+- **Load Balancing**: Nginx distributes requests across healthy service instances
+- **Auto-Recovery**: Docker automatically restarts failed containers
